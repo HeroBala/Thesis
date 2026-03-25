@@ -67,7 +67,7 @@ plt.scatter(df_clean['wind_speed_3_avg'],
 plt.scatter(V_real, P_real, color='red', label='Binned Power Curve')
 
 plt.xlabel('Wind speed (m/s)')
-plt.ylabel('Power (kW)')
+plt.ylabel('Power (MW)')
 plt.title('SCADA Wind Turbine Power Curve (Region 2)')
 plt.legend()
 plt.grid()

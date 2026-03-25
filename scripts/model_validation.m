@@ -1,95 +1,77 @@
-%% ============================================================
-% FINAL WIND TURBINE MODEL + SCADA VALIDATION (THESIS READY)
-%% ============================================================
+clc;
+clear;
+close all;
 
-clc
-clear
-close all
+%% Create FIS
+fis = mamfis('Name','WindTurbineFLC');
 
-%% ============================================================
-% 1. LOAD SCADA DATA
-%% ============================================================
+%% INPUT 1: Error (e)
+fis = addInput(fis,[-1 1],'Name','e');
+fis = addMF(fis,'e','trimf',[-1 -1 -0.5],'Name','NB');
+fis = addMF(fis,'e','trimf',[-1 -0.5 0],'Name','NS');
+fis = addMF(fis,'e','trimf',[-0.5 0 0.5],'Name','ZE');
+fis = addMF(fis,'e','trimf',[0 0.5 1],'Name','PS');
+fis = addMF(fis,'e','trimf',[0.5 1 1],'Name','PB');
 
-scada = readtable('scada_power_curve.csv');
+%% INPUT 2: Δe
+fis = addInput(fis,[-1 1],'Name','Delta_e');
+fis = addMF(fis,'Delta_e','trimf',[-1 -1 -0.5],'Name','NB');
+fis = addMF(fis,'Delta_e','trimf',[-1 -0.5 0],'Name','NS');
+fis = addMF(fis,'Delta_e','trimf',[-0.5 0 0.5],'Name','ZE');
+fis = addMF(fis,'Delta_e','trimf',[0 0.5 1],'Name','PS');
+fis = addMF(fis,'Delta_e','trimf',[0.5 1 1],'Name','PB');
 
-V_real = scada.wind_speed;      % m/s
+%% OUTPUT: ΔTg
+fis = addOutput(fis,[-1 1],'Name','Delta_Tg');
+fis = addMF(fis,'Delta_Tg','trimf',[-1 -1 -0.5],'Name','NB');
+fis = addMF(fis,'Delta_Tg','trimf',[-1 -0.5 0],'Name','NS');
+fis = addMF(fis,'Delta_Tg','trimf',[-0.5 0 0.5],'Name','ZE');
+fis = addMF(fis,'Delta_Tg','trimf',[0 0.5 1],'Name','PS');
+fis = addMF(fis,'Delta_Tg','trimf',[0.5 1 1],'Name','PB');
 
-% 🔥 IMPORTANT FIX (units)
-P_real = scada.power * 1000;    % convert MW → kW
+%% Plot
+figure('Color','w','Position',[100 100 900 750]);
 
-%% ============================================================
-% 2. TURBINE PARAMETERS (TUNED)
-%% ============================================================
+for i = 1:3
+    subplot(3,1,i)
 
-rho = 1.225;        % air density
-R   = 40;           % rotor radius (tuned)
-A   = pi * R^2;
+    if i == 1
+        plotmf(fis,'input',1)
+        title('Membership Functions of Input Variable $e$',...
+            'Interpreter','latex','FontSize',12)
+        xlabel('$e$','Interpreter','latex')
+    elseif i == 2
+        plotmf(fis,'input',2)
+        title('Membership Functions of Input Variable $\Delta e$',...
+            'Interpreter','latex','FontSize',12)
+        xlabel('$\Delta e$','Interpreter','latex')
+    else
+        plotmf(fis,'output',1)
+        title('Membership Functions of Output Variable $\Delta T_g$',...
+            'Interpreter','latex','FontSize',12)
+        xlabel('$\Delta T_g$','Interpreter','latex')
+    end
 
-lambda_opt = 8;     % optimal TSR
+    ylabel('Membership Degree ($\mu$)','Interpreter','latex')
 
-%% ============================================================
-% 3. Cp FUNCTION (NONLINEAR MODEL)
-%% ============================================================
+    % Axis styling
+    set(gca,'Color','w','XColor','k','YColor','k',...
+        'LineWidth',1,'GridAlpha',0.15)
+    grid on
 
-Cp_fun = @(lambda) ...
-    max(min( ...
-    0.22*((116./(1./((1./(lambda+0.08)) - 0.035))) - 5) ...
-    .* exp(-12.5./(1./((1./(lambda+0.08)) - 0.035))) ...
-    ,0.48),0);
+    % 🔥 Fix membership labels (NB, NS, ...)
+    textHandles = findall(gca,'Type','text');
+    set(textHandles,'Color','k','FontWeight','bold')
 
-Cp_opt = Cp_fun(lambda_opt);
+    % 🔥 Set all lines black but differentiate style
+    lines = findall(gca,'Type','line');
+    styles = {'-','--',':','-.','-'}; % different styles
 
-%% ============================================================
-% 4. RAW MODEL (PHYSICS-BASED)
-%% ============================================================
+    for j = 1:length(lines)
+        set(lines(j),'Color','k','LineWidth',1.5,...
+            'LineStyle',styles{mod(j-1,length(styles))+1})
+    end
+end
 
-P_model_raw = 0.5 * rho * A .* (V_real.^3) * Cp_opt;
-P_model_raw = P_model_raw / 1000;   % W → kW
-
-%% ============================================================
-% 5. AUTO-TUNING (PERFECT FIT)
-%% ============================================================
-
-scale_factor = sum(P_real .* P_model_raw) / sum(P_model_raw.^2);
-P_model_tuned = scale_factor * P_model_raw;
-
-%% ============================================================
-% 6. VALIDATION PLOT
-%% ============================================================
-
-figure
-hold on
-
-scatter(V_real, P_real, 90, 'b', 'filled')
-plot(V_real, P_model_raw, 'r--', 'LineWidth', 2)
-plot(V_real, P_model_tuned, 'g-', 'LineWidth', 3)
-
-xlabel('Wind Speed (m/s)')
-ylabel('Power (kW)')
-title('Wind Turbine Power Curve Validation')
-
-legend('SCADA Data','Raw Model','Tuned Model','Location','northwest')
-
-grid on
-box on
-
-%% ============================================================
-% 7. ERROR METRICS
-%% ============================================================
-
-RMSE_raw   = sqrt(mean((P_model_raw - P_real).^2));
-RMSE_tuned = sqrt(mean((P_model_tuned - P_real).^2));
-
-MAE_tuned  = mean(abs(P_model_tuned - P_real));
-
-disp('--------------------------------------')
-disp(['Raw RMSE   = ', num2str(RMSE_raw),   ' kW'])
-disp(['Tuned RMSE = ', num2str(RMSE_tuned), ' kW'])
-disp(['Tuned MAE  = ', num2str(MAE_tuned),  ' kW'])
-disp('--------------------------------------')
-
-%% ============================================================
-% 8. SAVE FIGURE (FOR THESIS)
-%% ============================================================
-
-saveas(gcf,'wind_turbine_validation.png')
+%% Export
+exportgraphics(gcf,'membership_functions_final.png','Resolution',300)

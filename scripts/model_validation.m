@@ -24,7 +24,7 @@ P_real = P_real * 1000;
 
 rho = 1.225;
 
-R = 26;                        % tuned radius (~600 kW turbine)
+R = 40;                        % tuned radius (~600 kW turbine)
 A = pi * R^2;
 
 lambda_opt = 7.5;

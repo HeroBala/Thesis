@@ -122,3 +122,57 @@ set(gca,'FontSize',12,'LineWidth',1,...
 
 print(gcf,'fig_power_comparison','-depsc')
 print(gcf,'fig_power_comparison','-dpng','-r300')
+%% =========================
+% ALIGN DATA (VERY IMPORTANT)
+% =========================
+
+% Interpolate SCADA to simulation time
+scada_interp = interp1(t_scada, scada_power, t, 'linear', 'extrap');
+
+% Remove NaN (safety)
+valid_idx = ~isnan(scada_interp);
+
+power_sim_valid = power_sim_MW(valid_idx);
+scada_valid = scada_interp(valid_idx);
+
+%% =========================
+% ERROR METRICS
+% =========================
+
+% Error signal
+error = power_sim_valid - scada_valid;
+
+% RMSE
+RMSE = sqrt(mean(error.^2));
+
+% MAE
+MAE = mean(abs(error));
+
+% MAPE (%)
+MAPE = mean(abs(error ./ scada_valid)) * 100;
+
+%% =========================
+% DISPLAY RESULTS
+% =========================
+fprintf('\n===== MODEL VALIDATION METRICS =====\n')
+fprintf('RMSE  = %.4f MW\n', RMSE)
+fprintf('MAE   = %.4f MW\n', MAE)
+fprintf('MAPE  = %.2f %%\n', MAPE)
+%% =========================
+% ERROR PLOT
+% =========================
+figure('Color','w')
+
+plot(t(valid_idx), error, 'k', 'LineWidth', 2)
+
+grid on
+box on
+
+xlabel('Time (s)')
+ylabel('Error (MW)')
+title('Power Error (Simulated - SCADA)')
+
+set(gca,'FontSize',12,'LineWidth',1,...
+    'GridColor',[0.7 0.7 0.7],'GridAlpha',0.3)
+
+print(gcf,'fig_error','-depsc')
